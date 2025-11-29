@@ -4,18 +4,21 @@ from typing import List, Tuple, Dict
 import pytesseract
 import json
 import re
+import os
 from datetime import datetime
+
 
 
 class TesztlapKiertekelo:
     
     def __init__(self, kep_utvonal: str, tesseract_path: str = None):
         """Kép betöltése és OCR inicializálás."""
-        self.kep_utvonal = kep_utvonal
+        self.kep_utvonal = os.path.abspath(kep_utvonal)
         self.tesseract_path = tesseract_path
-        self.kep = cv2.imread(kep_utvonal)
+        
+        self.kep = cv2.imdecode(np.fromfile(self.kep_utvonal, dtype=np.uint8), cv2.IMREAD_COLOR)
         if self.kep is None:
-            raise ValueError(f"Nem sikerült betölteni a képet: {kep_utvonal}")
+            raise ValueError(f"Nem sikerült betölteni a képet: {self.kep_utvonal}")
         
         self.szurke = cv2.cvtColor(self.kep, cv2.COLOR_BGR2GRAY)
         self.magassag, self.szelesseg = self.szurke.shape
@@ -79,7 +82,8 @@ class TesztlapKiertekelo:
         matrix = cv2.getPerspectiveTransform(pts1, pts2)
         self.szurke = cv2.warpPerspective(self.szurke, matrix, (self.szelesseg, self.magassag))
         self.kep = cv2.warpPerspective(self.kep, matrix, (self.szelesseg, self.magassag))
-    
+
+    # kék téglalapon belül
     def negyzetek_keresese(self, regio: Tuple[int, int, int, int]) -> List[Tuple[int, int, int, int]]:
         """Jelölőnégyzetek felismerése megadott területen."""
         x, y, w, h = regio
@@ -131,7 +135,8 @@ class TesztlapKiertekelo:
             print(f"      Négyzet ({x},{y},{w},{h}): fekete arány = {arany:.3f}, bejelölve = {arany > kuszob}")
         
         return arany > kuszob, arany
-    
+
+    # kék kerdetek
     def keretek_keresese(self, debug: bool = True) -> List[Tuple[int, int, int, int]]:
         """Kérdések kereteinek megkeresése."""
         elek = cv2.Canny(self.szurke, 50, 150)
@@ -327,17 +332,11 @@ class TesztlapKiertekelo:
         
         if debug:
             cv2.imwrite("debug/debug_neptun_bin1.png", binarizalt1)
-            cv2.imwrite("debug/debug_neptun_bin2.png", binarizalt2)
-            cv2.imwrite("debug/debug_neptun_bin3.png", binarizalt3)
-            cv2.imwrite("debug/debug_neptun_bin4.png", binarizalt4)
-            cv2.imwrite("debug/debug_neptun_bin5.png", binarizalt5)
+
         
         # OCR beállítások - Neptun kód specifikus
         config_variations = [
             r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-            r'--oem 3 --psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-            r'--oem 1 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-            r'--oem 3 --psm 13 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
         ]
         
         kepek = [binarizalt1, binarizalt2, binarizalt3, binarizalt4, binarizalt5]
@@ -345,7 +344,7 @@ class TesztlapKiertekelo:
         legjobb_hossz = 0
         
         try:
-            import pytesseract
+
             # Ha van tesseract_cmd beállítva
             if self.tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
@@ -492,8 +491,8 @@ class TesztlapKiertekelo:
             print("Perspektíva korrekció...")
             self.perspektiva_korrekcio()
         
-        print("Neptun kód felismerése...")
-        self.neptun_kod_kiolvasasa(debug=debug)
+        #print("Neptun kód felismerése...")
+        #self.neptun_kod_kiolvasasa(debug=debug)
         
         print("Kérdések kereteinek keresése...")
         keretek = self.keretek_keresese(debug=debug)
@@ -542,8 +541,8 @@ class TesztlapKiertekelo:
         print("\nIgaz/Hamis kérdések:")
         for kerdes_szam, valasz in eredmeny["igaz_hamis"].items():
             print(f"   {kerdes_szam}. kérdés: {valasz}")
-        
         print("\nFeleletválasztós kérdések:")
+
         for kerdes_szam, valasz_index in eredmeny["feleletvalasztos"].items():
             if valasz_index >= 0:
                 print(f"   {kerdes_szam}. kérdés: {valasz_index}. válasz (A-D: {chr(65 + valasz_index)})")
@@ -558,24 +557,31 @@ class TesztlapKiertekelo:
         """Debug kép mentése detektált elemekkel."""
         debug_kep = cv2.cvtColor(self.szurke, cv2.COLOR_GRAY2BGR)
         
+        skala = self.szelesseg / 600
+        vonal_vastag = max(2, int(3 * skala))
+        font_vastag = max(1, int(2 * skala))
+        font_meret = 0.6 * skala
+        
         neptun_keret = self.neptun_keret_keresese(debug=False)
         if neptun_keret:
             x, y, w, h = neptun_keret
-            cv2.rectangle(debug_kep, (x, y), (x+w, y+h), (0, 255, 255), 5)
-            cv2.putText(debug_kep, "NEPTUN", (x+5, y+h+20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
+            cv2.rectangle(debug_kep, (x, y), (x+w, y+h), (0, 255, 255), vonal_vastag)
+            cv2.putText(debug_kep, "NEPTUN", (x+5, y+h+int(10*skala)), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_meret, (0, 255, 255), font_vastag)
         
         keretek = self.keretek_keresese(debug=False)
         kerdes_szam = 1
         for i, (x, y, w, h) in enumerate(keretek):
             tipus = self.kerdes_tipusanak_meghatarozasa((x, y, w, h))
-            cv2.rectangle(debug_kep, (x, y), (x+w, y+h), (255, 0, 0), 5)
-            cv2.putText(debug_kep, f"#{kerdes_szam}", (x+10, y-15), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 0, 0), 6)
+            cv2.rectangle(debug_kep, (x, y), (x+w, y+h), (255, 0, 0), vonal_vastag)
+            cv2.putText(debug_kep, f"#{kerdes_szam}", (x+int(5*skala), y-int(5*skala)), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_meret * 1.2, (255, 0, 0), font_vastag + 1)
             kerdes_szam += 1
         
         ih_count = 0
         fv_count = 0
+        
+        checkbox_vastag = max(2, int(2 * skala))
         
         for checkbox in self.debug_checkboxok:
             nx, ny, nw, nh, ki_van_jelolve, arany, tipus = checkbox
@@ -586,9 +592,9 @@ class TesztlapKiertekelo:
                 fv_count += 1
             
             if ki_van_jelolve:
-                cv2.rectangle(debug_kep, (nx, ny), (nx+nw, ny+nh), (0, 255, 0), 4)
+                cv2.rectangle(debug_kep, (nx, ny), (nx+nw, ny+nh), (0, 255, 0), checkbox_vastag)
             else:
-                cv2.rectangle(debug_kep, (nx, ny), (nx+nw, ny+nh), (0, 0, 255), 4)
+                cv2.rectangle(debug_kep, (nx, ny), (nx+nw, ny+nh), (0, 0, 255), checkbox_vastag)
         
         print(f"   Igaz/Hamis checkboxok rajzolva: {ih_count}")
         print(f"   Feleletválasztós checkboxok rajzolva: {fv_count}")
@@ -598,7 +604,7 @@ class TesztlapKiertekelo:
     
     def eredmeny_mentese(self, eredmeny: Dict, kimeneti_mappa: str = "eredmenyek"):
         """Eredmények mentése JSON fájlba."""
-        import os
+
         
         if not os.path.exists(kimeneti_mappa):
             os.makedirs(kimeneti_mappa)
@@ -641,7 +647,7 @@ def main():
         
     except Exception as e:
         print(f"[!] Hiba történt: {e}")
-        import traceback
+
         traceback.print_exc()
 
 

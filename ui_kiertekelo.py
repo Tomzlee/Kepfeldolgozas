@@ -11,7 +11,7 @@ class TesztlapKiertekeloUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Tesztlap Kiértékelő")
-        self.root.geometry("1400x900")
+        self.root.geometry("1400x1000")
 
         self.kep_utvonal = None
         self.eredmeny = None
@@ -131,7 +131,8 @@ class TesztlapKiertekeloUI:
             messagebox.showerror("Hiba", "Kérlek válassz ki egy tesztlap képet!")
             return
 
-        if not os.path.exists(self.kep_path_var.get()):
+        kep_utvonal = os.path.abspath(self.kep_path_var.get())
+        if not os.path.exists(kep_utvonal):
             messagebox.showerror("Hiba", "A kiválasztott képfájl nem található!")
             return
 
@@ -143,7 +144,6 @@ class TesztlapKiertekeloUI:
             self.eredmeny_text.insert(tk.END, "Feldolgozás folyamatban...\n\n")
             self.root.update()
 
-            kep_utvonal = self.kep_path_var.get()
             tesseract_path = self.tesseract_path_var.get() if self.tesseract_path_var.get() else None
             debug = self.debug_var.get()
             perspektiva = self.perspektiva_var.get()
@@ -200,16 +200,11 @@ class TesztlapKiertekeloUI:
             return
 
         img = Image.open(kep_utvonal)
-
-        max_width = 650
-        max_height = 700
-        img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
-
         self.photo = ImageTk.PhotoImage(img)
 
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo)
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.canvas.configure(scrollregion=(0, 0, img.width, img.height))
 
     def megnyit_debug_kepet(self):
         debug_kep_path = "debug_output.png"
