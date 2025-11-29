@@ -1,3 +1,4 @@
+import traceback
 import cv2
 import numpy as np
 from typing import List, Tuple, Dict
@@ -12,7 +13,6 @@ from datetime import datetime
 class TesztlapKiertekelo:
     
     def __init__(self, kep_utvonal: str, tesseract_path: str = None):
-        """Kép betöltése és OCR inicializálás."""
         self.kep_utvonal = os.path.abspath(kep_utvonal)
         self.tesseract_path = tesseract_path
         
@@ -30,7 +30,6 @@ class TesztlapKiertekelo:
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
         
     def sarkok_keresese(self) -> List[Tuple[int, int]]:
-        """Sarokjelek felismerése a képen."""
         _, binarizalt = cv2.threshold(self.szurke, 127, 255, cv2.THRESH_BINARY_INV)
         konturok, _ = cv2.findContours(binarizalt, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
@@ -295,7 +294,6 @@ class TesztlapKiertekelo:
         return eredmenyek
     
     def neptun_kod_kiolvasasa(self, debug: bool = False) -> str:
-        """Neptun kód felismerése OCR-rel."""
         keretezett_terulet = self.neptun_keret_keresese(debug)
         
         if keretezett_terulet is not None:
@@ -318,109 +316,30 @@ class TesztlapKiertekelo:
         
         roi_nagyitott = cv2.resize(roi, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
         
-        _, binarizalt1 = cv2.threshold(roi_nagyitott, 140, 255, cv2.THRESH_BINARY)
-        _, binarizalt2 = cv2.threshold(roi_nagyitott, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
         kontraszt = cv2.convertScaleAbs(roi_nagyitott, alpha=2.0, beta=-80)
-        _, binarizalt3 = cv2.threshold(kontraszt, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        kontraszt2 = cv2.convertScaleAbs(roi_nagyitott, alpha=2.8, beta=-120)
-        _, binarizalt4 = cv2.threshold(kontraszt2, 130, 255, cv2.THRESH_BINARY)
-        
-        binarizalt5 = cv2.adaptiveThreshold(roi_nagyitott, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                            cv2.THRESH_BINARY, 15, 5)
+        _, binarizalt = cv2.threshold(kontraszt, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         if debug:
-            cv2.imwrite("debug/debug_neptun_bin1.png", binarizalt1)
-
-        
-        # OCR beállítások - Neptun kód specifikus
-        config_variations = [
-            r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-        ]
-        
-        kepek = [binarizalt1, binarizalt2, binarizalt3, binarizalt4, binarizalt5]
-        legjobb_eredmeny = ""
-        legjobb_hossz = 0
+            cv2.imwrite("debug/debug_neptun_bin.png", binarizalt)
         
         try:
-
-            # Ha van tesseract_cmd beállítva
             if self.tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
             
-            # Próbáljuk ki az összes kombinációt
-            lehetseges_eredmenyek = {}  # Szótár: eredmény -> gyakoriság
+            config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+            szoveg = pytesseract.image_to_string(binarizalt, config=config)
+            szoveg = szoveg.strip().upper()
+            szoveg = re.sub(r'[^A-Z0-9]', '', szoveg)
             
-            for i, kep in enumerate(kepek):
-                for j, config in enumerate(config_variations):
-                    try:
-                        szoveg = pytesseract.image_to_string(kep, config=config)
-                        szoveg = szoveg.strip().upper()
-                        szoveg = re.sub(r'[^A-Z0-9]', '', szoveg)
-                        
-                        if debug:
-                            print(f"   Kísérlet {i+1}-{j+1}: '{szoveg}' (hossz: {len(szoveg)})")
-                        
-                        if len(szoveg) == 6:
-                            if szoveg in lehetseges_eredmenyek:
-                                lehetseges_eredmenyek[szoveg] += 1
-                            else:
-                                lehetseges_eredmenyek[szoveg] = 1
-                        
-                        if len(szoveg) > 6:
-                            szoveg_6 = szoveg[:6]
-                            if szoveg_6 in lehetseges_eredmenyek:
-                                lehetseges_eredmenyek[szoveg_6] += 1
-                            else:
-                                lehetseges_eredmenyek[szoveg_6] = 1
-                        
-                        if len(szoveg) > legjobb_hossz:
-                            legjobb_eredmeny = szoveg
-                            legjobb_hossz = len(szoveg)
-                    
-                    except Exception as e:
-                        if debug:
-                            print(f"   Kísérlet {i+1}-{j+1} sikertelen: {e}")
-                        continue
+            if debug:
+                print(f"   Felismert szöveg: '{szoveg}' (hossz: {len(szoveg)})")
             
-            if lehetseges_eredmenyek:
+            if len(szoveg) >= 6:
+                self.neptun_kod = szoveg[:6]
+            elif len(szoveg) > 0:
                 if debug:
-                    print(f"\n   Lehetséges 6 karakteres eredmények:")
-                    for eredmeny, gyakori in sorted(lehetseges_eredmenyek.items(), key=lambda x: -x[1]):
-                        szamok_szama = sum(c.isdigit() for c in eredmeny)
-                        print(f"      '{eredmeny}' - {gyakori}x (számok: {szamok_szama})")
-                
-                legjobb_pontszam = -1
-                legjobb_eredmeny = None
-                
-                for eredmeny, gyakori in lehetseges_eredmenyek.items():
-                    szamok_szama = sum(c.isdigit() for c in eredmeny)
-                    pontszam = gyakori * 10 + szamok_szama * 15
-                    
-                    if pontszam > legjobb_pontszam:
-                        legjobb_pontszam = pontszam
-                        legjobb_eredmeny = eredmeny
-                
-                legjobb_hossz = 6
-                if debug:
-                    print(f"   Legjobb súlyozott eredmény: {legjobb_eredmeny}")
-            elif legjobb_eredmeny:
-                if len(legjobb_eredmeny) > 6:
-                    legjobb_eredmeny = legjobb_eredmeny[:6]
-                    legjobb_hossz = 6
-            
-            if legjobb_eredmeny:
-                if len(legjobb_eredmeny) > 6:
-                    legjobb_eredmeny = legjobb_eredmeny[:6]
-                
-                # Ha rövidebb mint 6, de van valami
-                if len(legjobb_eredmeny) < 6 and len(legjobb_eredmeny) > 0:
-                    if debug:
-                        print(f"   Csak {len(legjobb_eredmeny)} karaktert sikerült felismerni: '{legjobb_eredmeny}'")
-                    self.neptun_kod = "ISMERETLEN"
-                else:
-                    self.neptun_kod = legjobb_eredmeny if len(legjobb_eredmeny) == 6 else "ISMERETLEN"
+                    print(f"   Csak {len(szoveg)} karaktert sikerült felismerni")
+                self.neptun_kod = "ISMERETLEN"
             else:
                 if debug:
                     print("   Nem sikerült karaktereket felismerni")
@@ -492,7 +411,7 @@ class TesztlapKiertekelo:
             self.perspektiva_korrekcio()
         
         #print("Neptun kód felismerése...")
-        #self.neptun_kod_kiolvasasa(debug=debug)
+        self.neptun_kod_kiolvasasa(debug=debug)
         
         print("Kérdések kereteinek keresése...")
         keretek = self.keretek_keresese(debug=debug)
@@ -554,7 +473,6 @@ class TesztlapKiertekelo:
         print("\n" + "="*50)
     
     def debug_kep_mentese(self, kimeneti_utvonal: str = "debug_output.png"):
-        """Debug kép mentése detektált elemekkel."""
         debug_kep = cv2.cvtColor(self.szurke, cv2.COLOR_GRAY2BGR)
         
         skala = self.szelesseg / 600
@@ -603,8 +521,6 @@ class TesztlapKiertekelo:
         print(f"Debug kép mentve: {kimeneti_utvonal}")
     
     def eredmeny_mentese(self, eredmeny: Dict, kimeneti_mappa: str = "eredmenyek"):
-        """Eredmények mentése JSON fájlba."""
-
         
         if not os.path.exists(kimeneti_mappa):
             os.makedirs(kimeneti_mappa)
@@ -623,9 +539,8 @@ class TesztlapKiertekelo:
 
 
 def main():
-    """Tesztlap kiértékelő program."""
     
-    kep_utvonal = "random_tesztlap5_utf8.png"
+    kep_utvonal = "kepek/kep_kitoltott.png"
     perspektiva_korrekcio = True
     debug = True
     tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
