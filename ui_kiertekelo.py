@@ -50,6 +50,9 @@ class TesztlapKiertekeloUI:
         self.perspektiva_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(options_frame, text="Perspektíva korrekció", variable=self.perspektiva_var).pack(side=tk.LEFT, padx=10)
 
+        self.zajszures_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(options_frame, text="Zajszűrés", variable=self.zajszures_var).pack(side=tk.LEFT, padx=10)
+
         button_frame = ttk.Frame(settings_frame)
         button_frame.grid(row=3, column=0, columnspan=3, pady=10)
 
@@ -147,8 +150,9 @@ class TesztlapKiertekeloUI:
             tesseract_path = self.tesseract_path_var.get() if self.tesseract_path_var.get() else None
             debug = self.debug_var.get()
             perspektiva = self.perspektiva_var.get()
+            zajszures = self.zajszures_var.get()
 
-            self.kiertekelo = TesztlapKiertekelo(kep_utvonal, tesseract_path)
+            self.kiertekelo = TesztlapKiertekelo(kep_utvonal, tesseract_path, zajszures=zajszures)
 
             self.eredmeny = self.kiertekelo.teljes_kiertekeles(debug=debug, perspektiva=perspektiva)
 

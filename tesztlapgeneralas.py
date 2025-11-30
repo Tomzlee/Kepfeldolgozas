@@ -6,8 +6,27 @@ from reportlab.lib.units import cm
 import random
 from pdf2image import convert_from_path
 import os
+import sys
 
-pdfmetrics.registerFont(TTFont('Arial', r"C:\\Windows\\Fonts\\arial.ttf"))
+# Próbáljuk meg megtalálni az Arial font-ot
+arial_font_path = None
+if sys.platform == "win32":
+    possible_paths = [
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\Arial.ttf"
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            arial_font_path = path
+            break
+
+if arial_font_path:
+    pdfmetrics.registerFont(TTFont('Arial', arial_font_path))
+else:
+    # Ha nem találjuk az Arial-t, használjuk a Helvetica-t (beépített)
+    print("⚠️  Arial font nem található, Helvetica használata...")
+    from reportlab.pdfbase.pdfmetrics import registerFontFamily
+    # Helvetica a reportlab beépített fontja, nem kell regisztrálni
 
 true_false_questions = [
     "A Nap egy csillag.",
@@ -39,7 +58,8 @@ for q_data in multiple_choice_questions:
 # Kérdések véletlenszerű összekeverése
 random.shuffle(all_questions)
 
-file_path = r"C:\Users\crysm\PycharmProjects\DigiképProjektmunka\random_tesztlap5_utf8.pdf"
+# Fájl mentése az aktuális munkakönyvtárba
+file_path = os.path.join(os.getcwd(), "tesztkep.pdf")
 c = canvas.Canvas(file_path, pagesize=A4)
 
 width, height = A4
@@ -145,21 +165,21 @@ for q_type, q_data in all_questions:
         fv_counter += 1
 
 c.save()
-print(f"✅ PDF generálva: {file_path}")
+print(f"[OK] PDF generalva: {file_path}")
 
 # ===== PDF konvertálása PNG formátumba =====
 try:
     png_path = file_path.replace('.pdf', '.png')
-    
+
     # PDF konvertálása képpé (300 DPI felbontással)
     images = convert_from_path(file_path, dpi=300)
-    
+
     # Első oldal mentése PNG-ként
     if images:
         images[0].save(png_path, 'PNG')
-        print(f"✅ PNG generálva: {png_path}")
-    
+        print(f"[OK] PNG generalva: {png_path}")
+
 except Exception as e:
-    print(f"⚠️  PNG konverzió hiba: {e}")
+    print(f"[WARNING] PNG konverzio hiba: {e}")
     print("   Telepítsd a Poppler-t a PDF->PNG konverzióhoz:")
     print("   https://github.com/oschwartz10612/poppler-windows/releases/")

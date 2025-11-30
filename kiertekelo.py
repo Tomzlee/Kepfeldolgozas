@@ -12,23 +12,38 @@ from datetime import datetime
 
 class TesztlapKiertekelo:
     
-    def __init__(self, kep_utvonal: str, tesseract_path: str = None):
+    def __init__(self, kep_utvonal: str, tesseract_path: str = None, zajszures: bool = True):
         self.kep_utvonal = os.path.abspath(kep_utvonal)
         self.tesseract_path = tesseract_path
-        
+
         self.kep = cv2.imdecode(np.fromfile(self.kep_utvonal, dtype=np.uint8), cv2.IMREAD_COLOR)
         if self.kep is None:
             raise ValueError(f"Nem sikerült betölteni a képet: {self.kep_utvonal}")
-        
+
         self.szurke = cv2.cvtColor(self.kep, cv2.COLOR_BGR2GRAY)
+
+        # Zajszűrés alkalmazása (opcionális)
+        if zajszures:
+            self.zajszures_elofeldolgozas()
+
         self.magassag, self.szelesseg = self.szurke.shape
         self.sarkok = []
         self.neptun_kod = None
         self.debug_checkboxok = []
-        
+
         if tesseract_path:
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
-        
+
+    def zajszures_elofeldolgozas(self):
+        """
+        Zajszűrés előfeldolgozás szennyezett/beszkennelt képekhez.
+        Eltávolítja a sót-borsot, foltokat és egyéb zajokat.
+        Nagyon enyhe szűrés, ami megőrzi az éleket és jelöléseket.
+        """
+        # Bilateral szűrő - eltávolítja a zajt, de megőrzi az éleket
+        # d=5: kis szűrési terület, sigmaColor=20: enyhe szín küszöb, sigmaSpace=20: enyhe térbeli küszöb
+        self.szurke = cv2.bilateralFilter(self.szurke, d=5, sigmaColor=20, sigmaSpace=20)
+
     def sarkok_keresese(self) -> List[Tuple[int, int]]:
         _, binarizalt = cv2.threshold(self.szurke, 127, 255, cv2.THRESH_BINARY_INV)
         konturok, _ = cv2.findContours(binarizalt, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -109,11 +124,11 @@ class TesztlapKiertekelo:
         
         return negyzetek
     
-    def negyzet_ki_van_e_jelolve(self, negyzet: Tuple[int, int, int, int], kuszob: float = 0.25, debug: bool = False) -> Tuple[bool, float]:
+    def negyzet_ki_van_e_jelolve(self, negyzet: Tuple[int, int, int, int], kuszob: float = 0.30, debug: bool = False) -> Tuple[bool, float]:
         """Ellenőrzi, hogy egy négyzet ki van-e jelölve."""
         x, y, w, h = negyzet
-        # Nagyobb margó a négyzet széléről, hogy a keretet kihagyjuk
-        margin = max(3, min(w, h) // 4)
+        # Nagyobb margó a négyzet széléről, hogy a keretet és a rotációs artifaktokat kihagyjuk
+        margin = max(4, min(w, h) // 3)
         roi = self.szurke[y+margin:y+h-margin, x+margin:x+w-margin]
         
         if roi.size == 0:
@@ -543,7 +558,21 @@ def main():
     kep_utvonal = "kepek/kep_kitoltott.png"
     perspektiva_korrekcio = True
     debug = True
-    tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+    # Tesseract útvonal - próbáljuk meg automatikusan megtalálni
+    tesseract_path = None
+    if sys.platform == "win32":
+        # Windows: próbáljuk meg a tipikus helyeket
+        lehetseges_utak = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            os.path.expanduser(r"~\AppData\Local\Programs\Tesseract-OCR\tesseract.exe")
+        ]
+        for ut in lehetseges_utak:
+            if os.path.exists(ut):
+                tesseract_path = ut
+                break
+    # Linux/Mac: általában a PATH-ban van, nem kell megadni
     
     try:
         print(f"[*] Tesztlap betöltése: {kep_utvonal}")
