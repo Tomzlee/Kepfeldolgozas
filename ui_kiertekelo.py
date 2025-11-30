@@ -4,6 +4,9 @@ from PIL import Image, ImageTk
 import cv2
 import os
 import json
+import platform
+import traceback
+from datetime import datetime
 from kiertekelo import TesztlapKiertekelo
 
 class TesztlapKiertekeloUI:
@@ -162,7 +165,6 @@ class TesztlapKiertekeloUI:
         except Exception as e:
             messagebox.showerror("Hiba", f"Hiba történt: {str(e)}")
             self.status_var.set("Hiba történt")
-            import traceback
             traceback.print_exc()
 
 
@@ -231,13 +233,12 @@ class TesztlapKiertekeloUI:
     def megnyit_debug_kepet(self):
         debug_kep_path = "debug_output.png"
         if os.path.exists(debug_kep_path):
-            import platform
-            if platform.system()=="Windows":
+            if platform.system()=="Windows": #Windows
                 os.startfile(debug_kep_path)
-            elif platform.system()=="Darwin":
+            elif platform.system()=="Darwin": #macOS
                 os.system(f'open "{debug_kep_path}"')
             else:
-                os.system(f'xdg-open "{debug_kep_path}"')
+                os.system(f'xdg-open "{debug_kep_path}"') #Linux
         else:
             messagebox.showwarning("Figyelmeztetés","Debug kép nem található!")
 
@@ -251,7 +252,6 @@ class TesztlapKiertekeloUI:
             if not os.path.exists(kimeneti_mappa):
                 os.makedirs(kimeneti_mappa)
 
-            from datetime import datetime
             neptun_kod = self.eredmeny.get('neptun_kod','ISMERETLEN')
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             fajlnev = f"{neptun_kod}_{timestamp}.json"

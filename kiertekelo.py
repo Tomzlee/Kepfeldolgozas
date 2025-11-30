@@ -6,6 +6,7 @@ import pytesseract
 import json
 import re
 import os
+import sys
 from datetime import datetime
 
 

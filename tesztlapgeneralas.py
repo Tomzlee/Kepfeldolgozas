@@ -1,5 +1,6 @@
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
@@ -25,8 +26,7 @@ if arial_font_path:
 else:
     # Ha nem találjuk az Arial-t, használjuk a Helvetica-t (beépített)
     print("[WARNING] Arial font nem található, Helvetica használata...")
-    from reportlab.pdfbase.pdfmetrics import registerFontFamily
-    
+
 
 true_false_questions = [
     "A Nap egy csillag.",
