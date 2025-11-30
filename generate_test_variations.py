@@ -1,6 +1,3 @@
-"""
-Generate noisy and rotated test image variations for testing the evaluation system.
-"""
 import cv2
 import numpy as np
 import os
@@ -30,7 +27,7 @@ def add_noise_to_image(image_path, output_path, noise_level='medium'):
 
     noisy_img = img.copy()
 
-    # 1. Add salt and pepper noise (random black/white pixels)
+    # Add salt and pepper noise (random black/white pixels)
     h, w = noisy_img.shape[:2]
     num_salt = int(salt_pepper_amount * h * w)
 
@@ -42,11 +39,11 @@ def add_noise_to_image(image_path, output_path, noise_level='medium'):
     coords = [np.random.randint(0, i, num_salt) for i in (h, w)]
     noisy_img[coords[0], coords[1]] = 0
 
-    # 2. Add Gaussian noise
+    # Add Gaussian noise
     gaussian_noise = np.random.normal(0, gaussian_std, noisy_img.shape)
     noisy_img = np.clip(noisy_img + gaussian_noise, 0, 255).astype(np.uint8)
 
-    # 3. Add random "dirt spots" (small blobs)
+    # Add random "dirt spots" (small blobs)
     for _ in range(num_dirt_spots):
         x = np.random.randint(0, w - 50)
         y = np.random.randint(0, h - 50)
@@ -71,9 +68,6 @@ def add_noise_to_image(image_path, output_path, noise_level='medium'):
 
 
 def rotate_image(image_path, output_path, angle=None, add_perspective=True):
-    """
-    Rotate image to simulate misaligned scanning.
-    """
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Could not load image: {image_path}")
@@ -124,7 +118,7 @@ def rotate_image(image_path, output_path, angle=None, add_perspective=True):
             [w_rot + np.random.randint(-shift, shift), h_rot + np.random.randint(-shift, shift)]
         ])
 
-        # Apply perspective transform
+        # Apply perspective transformation
         perspective_matrix = cv2.getPerspectiveTransform(pts1, pts2)
         rotated_img = cv2.warpPerspective(rotated_img, perspective_matrix, (w_rot, h_rot),
                                           borderMode=cv2.BORDER_CONSTANT,
@@ -136,8 +130,6 @@ def rotate_image(image_path, output_path, angle=None, add_perspective=True):
 
 
 def main():
-    """Generate test image variations."""
-
     # Original test image
     original_image = "tesztkep.png"
 

@@ -24,9 +24,9 @@ if arial_font_path:
     pdfmetrics.registerFont(TTFont('Arial', arial_font_path))
 else:
     # Ha nem találjuk az Arial-t, használjuk a Helvetica-t (beépített)
-    print("⚠️  Arial font nem található, Helvetica használata...")
+    print("[WARNING] Arial font nem található, Helvetica használata...")
     from reportlab.pdfbase.pdfmetrics import registerFontFamily
-    # Helvetica a reportlab beépített fontja, nem kell regisztrálni
+    
 
 true_false_questions = [
     "A Nap egy csillag.",
